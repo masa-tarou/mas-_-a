@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geocache Stage 5: 宝箱のデジパチ</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace; /* レトロな雰囲気のフォント */
+            background-color: #111;
+            color: #fff;
+            text-align: center;
+            margin: 0;
+            padding: 10px;
+            touch-action: manipulation;
+        }
+        h1 { font-size: 17px; color: #f39c12; margin-bottom: 3px; }
+        p { font-size: 11px; color: #ccc; margin-top: 0; margin-bottom: 8px; }
+        
+        /* 宝箱とスロットを収めるコンテナ */
+        #game-container {
+            background-color: #222;
+            border: 3px solid #5d4037;
+            border-radius: 8px;
+            padding: 12px;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            margin-bottom: 10px;
+        }
+
+        .chest-icon {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        /* デジパチ風のドラム画面 */
+        .slot-machine {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            background-color: #000;
+            border: 4px inset #444;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+
+        .reel {
+            width: 50px;
+            height: 70px;
+            background-color: #1a1a1a;
+            border: 2px solid #e74c3c;
+            border-radius: 4px;
+            font-size: 36px;
+            font-weight: bold;
+            color: #e74c3c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+        }
+
+        /* スタート・ストップボタン */
+        .action-btn {
+            background-color: #e74c3c;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            font-family: inherit;
+        }
+        .action-btn:active {
+            transform: translateY(2px);
+            background-color: #c0392b;
+        }
+        .action-btn:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #message {
+            margin-top: 8px;
+            padding: 10px;
+            background: #2b2b2b;
+            border: 2px solid #f39c12;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        #message.hidden { 
+            display: none !important; 
+        }
+        .success { color: #2ecc71; font-weight: bold; font-size: 13px; }
+        
+        .retry-btn {
+            margin-top: 6px;
+            background-color: #f39c12;
+            color: #111;
+            border: none;
+            padding: 5px 10px;
+            font-weight: bold;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Stage 5: 宝箱のデジパチ</h1>
+    <p>宝箱を開けろ！数字が「777」で大当り！</p>
+
+    <div id="game-container">
+        <div class="chest-icon">📦</div>
+        
+        <!-- 3つのデジタルリール -->
+        <div class="slot-machine">
+            <div id="reel1" class="reel">7</div>
+            <div id="reel2" class="reel">7</div>
+            <div id="reel3" class="reel">7</div>
+        </div>
+
+        <button id="spinBtn" class="action-btn" onclick="startSpin()">回転スタート！</button>
+    </div>
+
+    <!-- クリア時メッセージ（初期状態はhiddenで隠れる） -->
+    <div id="message" class="hidden">
+        <p class="success">🎉 大当り！デジパチ突破！</p>
+        <p>次の座標: <b>N 36° XX.XXX E 139° XX.XXX</b></p>
+        <p>キーワード: <b>[ PACHINKO ]</b></p>
+        <button class="retry-btn" onclick="resetGame()">もう一度プレイする（答えを隠す）</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // 🎛️ 【確率調整エリア】ここをいじって確率を変えられます！
+        // ==========================================
+        // 当たりやすさの設定 (1 ～ 100 の数値)
+        // 例: 「10」にすると 10/100 (10%) の確率で「777」が揃います。
+        // 難しくしたい場合は「5」や「3」に減らしてください。
+        const WIN_PROBABILITY = 10; 
+        // ==========================================
+
+        let spinning = false;
+        let timer1, timer2, timer3;
+
+        const reel1 = document.getElementById('reel1');
+        const reel2 = document.getElementById('reel2');
+        const reel3 = document.getElementById('reel3');
+        const spinBtn = document.getElementById('spinBtn');
+        const messageBox = document.getElementById('message');
+
+        function startSpin() {
+            if (spinning) return;
+            spinning = true;
+            spinBtn.disabled = true;
+            messageBox.classList.add('hidden'); // 回し始めたらメッセージを隠す
+
+            // ランダムに数字を高速回転させるタイマー
+            timer1 = setInterval(() => { reel1.innerText = Math.floor(Math.random() * 10); }, 50);
+            timer2 = setInterval(() => { reel2.innerText = Math.floor(Math.random() * 10); }, 50);
+            timer3 = setInterval(() => { reel3.innerText = Math.floor(Math.random() * 10); }, 50);
+
+            // 2.5秒後に順番にストップさせる
+            setTimeout(() => { stopReels(); }, 2500);
+        }
+
+        function stopReels() {
+            // 当たり判定の抽選 (1 ～ 100 のランダム数字が WIN_PROBABILITY 以下なら当たり)
+            const isWin = Math.floor(Math.random() * 100) < WIN_PROBABILITY;
+
+            // 1つ目のリール停止
+            clearInterval(timer1);
+            let val1 = isWin ? 7 : Math.floor(Math.random() * 9) + 1; // 当たりなら7、外れなら1〜9
+            if (val1 === 7 && !isWin) val1 = 3; // 外れなのに7にならないように調整
+            reel1.innerText = val1;
+
+            // 0.5秒後に2つ目停止
+            setTimeout(() => {
+                clearInterval(timer2);
+                let val2 = isWin ? 7 : Math.floor(Math.random() * 9) + 1;
+                if (val2 === 7 && !isWin) val2 = 4;
+                reel2.innerText = val2;
+
+                // さらに0.5秒後に3つ目停止
+                setTimeout(() => {
+                    clearInterval(timer3);
+                    let val3 = isWin ? 7 : Math.floor(Math.random() * 9) + 1;
+                    if (val3 === 7 && !isWin) val3 = 5;
+                    reel3.innerText = val3;
+
+                    spinning = false;
+                    spinBtn.disabled = false;
+
+                    // 3つとも「7」ならクリア！
+                    if (reel1.innerText === '7' && reel2.innerText === '7' && reel3.innerText === '7') {
+                        messageBox.classList.remove('hidden');
+                    }
+                }, 500);
+            }, 500);
+        }
+
+        function resetGame() {
+            messageBox.classList.add('hidden');
+            reel1.innerText = '7';
+            reel2.innerText = '7';
+            reel3.innerText = '7';
+        }
+    </script>
+</body>
+</html>
