@@ -17,7 +17,6 @@
         h1 { font-size: 17px; color: #f39c12; margin-bottom: 3px; }
         p { font-size: 11px; color: #ccc; margin-top: 0; margin-bottom: 10px; }
         
-        /* 宝箱をイメージした背景コンテナ */
         #game-container {
             background-color: #3e2723;
             border: 4px solid #5d4037;
@@ -35,7 +34,6 @@
             font-weight: bold;
         }
 
-        /* スロットのドラム部分（宝箱の中身） */
         .slot-machine {
             display: flex;
             justify-content: center;
@@ -47,19 +45,21 @@
             margin-bottom: 12px;
         }
 
+        /* 視認性を良くするため、背景を黒、文字をカラフルに調整 */
         .reel {
-            width: 60px;
-            height: 70px;
-            background-color: #eee;
-            border: 2px solid #555;
+            width: 65px;
+            height: 75px;
+            background-color: #0a0a0a;
+            border: 2px solid #7f8c8d;
             border-radius: 4px;
-            font-size: 38px;
+            font-size: 26px; /* BARなどの文字が大きすぎないよう調整 */
+            font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: #f1c40f; /* 基本はゴールドで見やすく */
         }
 
-        /* 回転スタートボタン */
         .action-btn {
             background-color: #f39c12;
             color: #111;
@@ -118,7 +118,6 @@
     <div id="game-container">
         <div class="chest-title">📦 宝箱の内部スロット 📦</div>
         
-        <!-- 3つの絵柄リール -->
         <div class="slot-machine">
             <div id="reel1" class="reel">7</div>
             <div id="reel2" class="reel">7</div>
@@ -128,7 +127,6 @@
         <button id="spinBtn" class="action-btn" onclick="startSpin()">回転スタート！</button>
     </div>
 
-    <!-- クリア時メッセージ（最初はhiddenで隠れる） -->
     <div id="message" class="hidden">
         <p class="success">🎉 宝箱が開いた！大当り！</p>
         <p>次の座標: <b>N 36° XX.XXX E 139° XX.XXX</b></p>
@@ -138,13 +136,11 @@
 
     <script>
         // ==========================================
-        // 🎛️ 【確率調整エリア】当たりやすさの設定
+        // 🎛️ 【確率調整エリア】当たりやすさの設定 (1〜100)
         // ==========================================
-        // 1 ～ 100 の数値。例: 「15」なら15%の確率で「7」が揃います。
         const WIN_PROBABILITY = 15; 
         // ==========================================
 
-        // レトロスロットの絵柄候補（絵文字や数字）
         const symbols = ['7', '🍉', '🔔', '🍒', '🍇', '🍊', 'BAR'];
 
         let spinning = false;
@@ -157,41 +153,36 @@
         const messageBox = document.getElementById('message');
 
         function startSpin() {
+            // 回転中なら絶対に二重スタートしないようにガード
             if (spinning) return;
             spinning = true;
             spinBtn.disabled = true;
-            messageBox.classList.add('hidden'); // 回し始めたらメッセージを隠す
+            messageBox.classList.add('hidden');
 
-            // 高速で絵柄を切り替えるタイマー
             timer1 = setInterval(() => { reel1.innerText = symbols[Math.floor(Math.random() * symbols.length)]; }, 60);
             timer2 = setInterval(() => { reel2.innerText = symbols[Math.floor(Math.random() * symbols.length)]; }, 60);
             timer3 = setInterval(() => { reel3.innerText = symbols[Math.floor(Math.random() * symbols.length)]; }, 60);
 
-            // 2.5秒後に順番にストップ
             setTimeout(() => { stopReels(); }, 2500);
         }
 
         function stopReels() {
             const isWin = Math.floor(Math.random() * 100) < WIN_PROBABILITY;
 
-            // 1つ目のリール停止
             clearInterval(timer1);
             reel1.innerText = isWin ? '7' : symbols[Math.floor(Math.random() * (symbols.length - 1)) + 1];
 
-            // 0.5秒後に2つ目停止
             setTimeout(() => {
                 clearInterval(timer2);
                 reel2.innerText = isWin ? '7' : symbols[Math.floor(Math.random() * (symbols.length - 1)) + 1];
 
-                // さらに0.5秒後に3つ目停止
                 setTimeout(() => {
                     clearInterval(timer3);
                     reel3.innerText = isWin ? '7' : symbols[Math.floor(Math.random() * (symbols.length - 1)) + 1];
 
                     spinning = false;
-                    spinBtn.disabled = false;
+                    spinBtn.disabled = false; // 回転が終わるまでボタンは押せない
 
-                    // 3つとも「7」ならクリア！
                     if (reel1.innerText === '7' && reel2.innerText === '7' && reel3.innerText === '7') {
                         messageBox.classList.remove('hidden');
                     }
@@ -200,6 +191,7 @@
         }
 
         function resetGame() {
+            if (spinning) return; // 回転中はリセットさせない
             messageBox.classList.add('hidden');
             reel1.innerText = '7';
             reel2.innerText = '7';
