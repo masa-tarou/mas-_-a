@@ -45,19 +45,19 @@
             margin-bottom: 12px;
         }
 
-        /* 視認性を良くするため、背景を黒、文字をカラフルに調整 */
+        /* 視認性改善：背景を黒、文字をゴールドにして見やすくする */
         .reel {
-            width: 65px;
+            width: 70px;
             height: 75px;
-            background-color: #0a0a0a;
+            background-color: #000;
             border: 2px solid #7f8c8d;
             border-radius: 4px;
-            font-size: 26px; /* BARなどの文字が大きすぎないよう調整 */
+            font-size: 22px; /* BARなどがはみ出さないようにサイズ調整 */
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #f1c40f; /* 基本はゴールドで見やすく */
+            color: #f1c40f; 
         }
 
         .action-btn {
@@ -153,7 +153,6 @@
         const messageBox = document.getElementById('message');
 
         function startSpin() {
-            // 回転中なら絶対に二重スタートしないようにガード
             if (spinning) return;
             spinning = true;
             spinBtn.disabled = true;
@@ -181,7 +180,7 @@
                     reel3.innerText = isWin ? '7' : symbols[Math.floor(Math.random() * (symbols.length - 1)) + 1];
 
                     spinning = false;
-                    spinBtn.disabled = false; // 回転が終わるまでボタンは押せない
+                    spinBtn.disabled = false;
 
                     if (reel1.innerText === '7' && reel2.innerText === '7' && reel3.innerText === '7') {
                         messageBox.classList.remove('hidden');
@@ -191,7 +190,7 @@
         }
 
         function resetGame() {
-            if (spinning) return; // 回転中はリセットさせない
+            if (spinning) return;
             messageBox.classList.add('hidden');
             reel1.innerText = '7';
             reel2.innerText = '7';
