@@ -45,34 +45,36 @@
             margin-bottom: 12px;
         }
 
-        /* リール背景を明るめのレトロ調（シルバーグレー）にしてフルーツを映えるようにする */
+        /* リール基本設定：明るいレトロ調背景でフルーツもくっきり */
         .reel {
             width: 70px;
             height: 75px;
-            background-color: #f0f0f0;
+            background-color: #e8e8e8;
             border: 2px solid #555;
             border-radius: 4px;
-            font-size: 20px; /* 文字がはみ出さないサイズ感 */
+            font-size: 22px; 
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #333; /* デフォルトの文字色 */
+            color: #222; 
         }
 
         /* 「7」のときは赤色・太字にするクラス */
         .reel.is-seven {
-            color: #e74c3c;
+            color: #d63031;
             font-size: 32px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            font-weight: 900;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.2);
         }
 
-        /* 「BAR」のときはサイズを調整して綺麗に収めるクラス */
+        /* 「BAR」のときは黒文字で綺麗に枠内に収めるクラス */
         .reel.is-bar {
-            font-size: 16px;
-            color: #111;
-            background-color: #d1f2eb; /* BARだけ少し雰囲気を変えるのもアリ */
-            letter-spacing: -1px;
+            font-size: 15px;
+            color: #000;
+            font-weight: bold;
+            background-color: #dfe6e9;
+            letter-spacing: -0.5px;
         }
 
         .action-btn {
@@ -134,6 +136,7 @@
         <div class="chest-title">📦 宝箱の内部スロット 📦</div>
         
         <div class="slot-machine">
+            <!-- 初期表示からしっかり「7」にis-sevenクラスを付与 -->
             <div id="reel1" class="reel is-seven">7</div>
             <div id="reel2" class="reel is-seven">7</div>
             <div id="reel3" class="reel is-seven">7</div>
@@ -167,9 +170,9 @@
         const spinBtn = document.getElementById('spinBtn');
         const messageBox = document.getElementById('message');
 
-        // 絵柄に応じた見た目のスタイルを切り替える関数
+        // 絵柄に応じたスタイルを正確に切り替える関数
         function updateSymbolStyle(element, symbol) {
-            element.className = 'reel'; // いいったんリセット
+            element.className = 'reel'; // クラスをいったんリセット
             element.innerText = symbol;
             if (symbol === '7') {
                 element.classList.add('is-seven');
