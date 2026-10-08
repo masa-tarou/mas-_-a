@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>インベーダー風ミニゲーム - Geocaching Puzzle</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            font-size: 1.1rem;
+            margin: 5px 0;
+            color: #0f0;
+            text-shadow: 0 0 5px #0f0;
+        }
+        #game-container {
+            position: relative;
+            width: 320px;
+            height: 480px;
+            background-color: #000;
+            border: 2px solid #0f0;
+            box-shadow: 0 0 10px #0f0;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+        canvas {
+            display: block;
+            background-color: #000;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .ui-panel {
+            width: 320px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 0 10px;
+        }
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        input[type="range"] {
+            width: 170px;
+            accent-color: #0f0;
+        }
+        #fire-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background-color: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 4px #008800;
+            transition: background 0.1s;
+        }
+        #fire-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px #008800;
+            background-color: #0c0;
+        }
+        #fire-btn:disabled {
+            background-color: #333;
+            color: #666;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        #message-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 10;
+        }
+        #message-overlay h2 {
+            margin-bottom: 10px;
+            color: #ff0;
+            font-size: 1.4rem;
+        }
+        #message-overlay p {
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .start-btn {
+            padding: 10px 20px;
+            font-size: 1rem;
+            background-color: #ff0;
+            color: #000;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .clear-box {
+            background: #002200;
+            border: 1px dashed #0f0;
+            padding: 10px;
+            margin-bottom: 15px;
+            width: 100%;
+            text-align: left;
+            font-size: 0.8rem;
+        }
+        .clear-box span {
+            color: #ff0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ALIEN BLASTER (10missiles)</h1>
+    
+    <div id="game-container">
+        <div id="message-overlay">
+            <h2 id="overlay-title">READY?</h2>
+            <p id="overlay-text">ミサイルは計10発！<br>5匹倒してクリアを目指せ！</p>
+            <button class="start-btn" id="action-btn" onclick="startGame()">ゲームスタート</button>
+        </div>
+        <canvas id="gameCanvas" width="320" height="480"></canvas>
+    </div>
+
+    <div class="ui-panel">
+        <div class="control-row">
+            <label for="speedRange">スピード: <span id="speed-val">5</span></label>
+            <input type="range" id="speedRange" min="1" max="30" value="5" oninput="updateSpeed(this.value)">
+        </div>
+        <button id="fire-btn">FIRE! (残弾: <span id="ammo-count">10</span>)</button>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// ゲーム状態
+let gameState = 'READY'; 
+let score = 0;
+let alienSpeedMultiplier = 5;
+let remainingAmmo = 10;
+let defeatedCount = 0;
+const targetDefeat = 5; // 5匹倒したらクリア
+
+// 自機（固定）
+const player = {
+    x: canvas.width / 2 - 16,
+    y: canvas.height - 50,
+    width: 32,
+    height: 32
+};
+
+let missiles = [];
+let aliens = [];
+const alienRows = 3;
+const alienCols = 4;
+const alienWidth = 28;
+const alienHeight = 28;
+const alienPadding = 12;
+const alienOffsetTop = 45;
+const alienOffsetLeft = 35;
+
+let alienXDir = 1; 
+let alienMoveTimer = 0;
+
+function initAliens() {
+    aliens = [];
+    for (let r = 0; r < alienRows; r++) {
+        for (let c = 0; c < alienCols; c++) {
+            aliens.push({
+                x: alienOffsetLeft + c * (alienWidth + alienPadding),
+                y: alienOffsetTop + r * (alienHeight + alienPadding),
+                width: alienWidth,
+                height: alienHeight,
+                status: 1, // 1: 生存, 0: 破壊
+                type: r
+            });
+        }
+    }
+}
+
+function updateSpeed(val) {
+    alienSpeedMultiplier = parseInt(val);
+    document.getElementById('speed-val').innerText = alienSpeedMultiplier;
+}
+
+function updateAmmoDisplay() {
+    document.getElementById('ammo-count').innerText = remainingAmmo;
+    if (remainingAmmo <= 0) {
+        document.getElementById('fire-btn').disabled = true;
+    } else {
+        document.getElementById('fire-btn').disabled = false;
+    }
+}
+
+function startGame() {
+    initAliens();
+    missiles = [];
+    score = 0;
+    remainingAmmo = 10;
+    defeatedCount = 0;
+    updateAmmoDisplay();
+    gameState = 'PLAYING';
+    document.getElementById('message-overlay').style.display = 'none';
+}
+
+// ミサイル発射処理
+function fireMissile() {
+    if (gameState !== 'PLAYING') return;
+    if (remainingAmmo > 0) {
+        missiles.push({
+            x: player.x + player.width / 2 - 3,
+            y: player.y,
+            width: 6,
+            height: 14,
+            speed: 9
+        });
+        remainingAmmo--;
+        updateAmmoDisplay();
+    }
+}
+
+// イベントリスナー
+const fireBtn = document.getElementById('fire-btn');
+fireBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    fireMissile();
+});
+fireBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    fireMissile();
+}, { passive: false });
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        fireMissile();
+    }
+});
+
+// メインループ
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    // --- ミサイル移動 & 当たり判定 ---
+    for (let i = missiles.length - 1; i >= 0; i--) {
+        missiles[i].y -= missiles[i].speed;
+        
+        if (missiles[i].y < 0) {
+            missiles.splice(i, 1);
+            continue;
+        }
+
+        let hit = false;
+        for (let j = 0; j < aliens.length; j++) {
+            let a = aliens[j];
+            if (a.status === 1) {
+                if (
+                    missiles[i].x < a.x + a.width &&
+                    missiles[i].x + missiles[i].width > a.x &&
+                    missiles[i].y < a.y + a.height &&
+                    missiles[i].y + missiles[i].height > a.y
+                ) {
+                    a.status = 0; 
+                    hit = true;
+                    score += 100;
+                    defeatedCount++;
+                    break;
+                }
+            }
+        }
+        if (hit) {
+            missiles.splice(i, 1);
+        }
+    }
+
+    // 勝利判定（5匹撃破）
+    if (defeatedCount >= targetDefeat) {
+        gameClear();
+        return;
+    }
+
+    // --- エイリアンの動き ---
+    alienMoveTimer++;
+    let threshold = Math.max(1, 15 - Math.floor(alienSpeedMultiplier / 2));
+    
+    if (alienMoveTimer >= threshold) {
+        alienMoveTimer = 0;
+        let moveStep = alienSpeedMultiplier > 20 ? (alienSpeedMultiplier - 19) * 2 : 2;
+        let edgeReached = false;
+        
+        for (let a of aliens) {
+            if (a.status === 1) {
+                if ((alienXDir > 0 && a.x + a.width + moveStep > canvas.width - 10) ||
+                    (alienXDir < 0 && a.x - moveStep < 10)) {
+                    edgeReached = true;
+                    break;
+                }
+            }
+        }
+
+        if (edgeReached) {
+            alienXDir *= -1;
+            for (let a of aliens) {
+                if (a.status === 1) {
+                    a.y += 14;
+                    // 自機ライン（または最下段）に来たらゲームオーバー
+                    if (a.y + a.height >= player.y) {
+                        gameOver('エイリアンに侵略されてしまった…');
+                    }
+                }
+            }
+        } else {
+            for (let a of aliens) {
+                if (a.status === 1) {
+                    a.x += alienXDir * moveStep;
+                }
+            }
+        }
+    }
+
+    // 弾切れ & 画面上に飛んでいる弾がない場合のゲームオーバー判定
+    if (remainingAmmo === 0 && missiles.length === 0 && defeatedCount < targetDefeat) {
+        gameOver('弾切れだ！エイリアンを倒しきれなかった…');
+    }
+}
+
+function gameOver(reason) {
+    gameState = 'GAMEOVER';
+    document.getElementById('overlay-title').innerText = 'GAME OVER';
+    document.getElementById('overlay-title').style.color = '#f55';
+    document.getElementById('overlay-text').innerHTML = `${reason}<br>スコア: ${score} (撃破数: ${defeatedCount}/${targetDefeat})`;
+    document.getElementById('action-btn').innerText = 'もう一度挑戦する';
+    document.getElementById('message-overlay').style.display = 'flex';
+}
+
+function gameClear() {
+    gameState = 'CLEAR';
+    document.getElementById('overlay-title').innerText = 'STAGE CLEAR!!';
+    document.getElementById('overlay-title').style.color = '#5ff';
+    
+    // Geocaching用座標・キーワードの表示エリア作成
+    document.getElementById('overlay-text').innerHTML = `
+        <div class="clear-box">
+            <div>📍 座標: <span>N 36° 30.XXX E 139° 00.YYY</span></div>
+            <div>🔑 キーワード: <span>GUNMA_SIGNAL_2026</span></div>
+        </div>
+        お見事！次への手がかりを手に入れた！
+    `;
+    document.getElementById('action-btn').innerText = 'もう一度遊ぶ';
+    document.getElementById('message-overlay').style.display = 'flex';
+}
+
+function draw() {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // スコア & 撃破数表示
+    ctx.fillStyle = '#0f0';
+    ctx.font = '12px "Courier New"';
+    ctx.fillText(`SCORE: ${score}  DEFEAT: ${defeatedCount}/${targetDefeat}`, 10, 20);
+
+    // 自機
+    ctx.fillStyle = '#00ffcc';
+    ctx.fillRect(player.x + 12, player.y, 8, 16); 
+    ctx.fillRect(player.x + 4, player.y + 16, 24, 12); 
+    ctx.fillRect(player.x, player.y + 28, 8, 4);   
+    ctx.fillRect(player.x + 24, player.y + 28, 8, 4); 
+
+    // ミサイル
+    ctx.fillStyle = '#ffff00';
+    for (let m of missiles) {
+        ctx.fillRect(m.x, m.y, m.width, m.height);
+    }
+
+    // エイリアン
+    for (let a of aliens) {
+        if (a.status === 1) {
+            ctx.fillStyle = a.type % 2 === 0 ? '#ff3366' : '#cc33ff';
+            ctx.fillRect(a.x + 4, a.y, 20, 4);
+            ctx.fillRect(a.x + 2, a.y + 4, 24, 8);
+            ctx.fillRect(a.x, a.y + 12, 28, 12);
+            ctx.fillRect(a.x + 4, a.y + 24, 6, 4);
+            ctx.fillRect(a.x + 18, a.y + 24, 6, 4);
+        }
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+initAliens();
+updateAmmoDisplay();
+draw();
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
