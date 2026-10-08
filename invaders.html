@@ -53,19 +53,9 @@
             gap: 8px;
             padding: 0 10px;
         }
-        .control-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.85rem;
-        }
-        input[type="range"] {
-            width: 170px;
-            accent-color: #0f0;
-        }
         #fire-btn {
             width: 100%;
-            padding: 14px;
+            padding: 16px;
             font-size: 1.2rem;
             font-weight: bold;
             background-color: #0f0;
@@ -138,22 +128,18 @@
 </head>
 <body>
 
-    <h1>ALIEN BLASTER (10missiles)</h1>
+    <h1>ALIEN BLASTER</h1>
     
     <div id="game-container">
         <div id="message-overlay">
             <h2 id="overlay-title">READY?</h2>
-            <p id="overlay-text">ミサイルは計10発！<br>5匹倒してクリアを目指せ！</p>
+            <p id="overlay-text">ミサイルは計10発！<br>倒すたびにスピードアップ！<br>5匹倒してクリアを目指せ！</p>
             <button class="start-btn" id="action-btn" onclick="startGame()">ゲームスタート</button>
         </div>
         <canvas id="gameCanvas" width="320" height="480"></canvas>
     </div>
 
     <div class="ui-panel">
-        <div class="control-row">
-            <label for="speedRange">スピード: <span id="speed-val">5</span></label>
-            <input type="range" id="speedRange" min="1" max="30" value="5" oninput="updateSpeed(this.value)">
-        </div>
         <button id="fire-btn">FIRE! (残弾: <span id="ammo-count">10</span>)</button>
     </div>
 
@@ -164,10 +150,14 @@ const ctx = canvas.getContext('2d');
 // ゲーム状態
 let gameState = 'READY'; 
 let score = 0;
-let alienSpeedMultiplier = 5;
 let remainingAmmo = 10;
 let defeatedCount = 0;
-const targetDefeat = 5; // 5匹倒したらクリア
+const targetDefeat = 5; 
+
+// スピードの段階テーブル（撃破数に対応: 0匹〜4匹撃破後）
+// 0匹撃破(開始時): 10, 1匹撃破時: 16, 2匹: 22, 3匹: 25, 4匹: 30
+const speedStages = [10, 16, 22, 25, 30];
+let currentAlienSpeed = 10;
 
 // 自機（固定）
 const player = {
@@ -206,9 +196,10 @@ function initAliens() {
     }
 }
 
-function updateSpeed(val) {
-    alienSpeedMultiplier = parseInt(val);
-    document.getElementById('speed-val').innerText = alienSpeedMultiplier;
+// 撃破数に応じてスピードを更新
+function updateSpeedByDefeat() {
+    let index = Math.min(defeatedCount, speedStages.length - 1);
+    currentAlienSpeed = speedStages[index];
 }
 
 function updateAmmoDisplay() {
@@ -226,6 +217,7 @@ function startGame() {
     score = 0;
     remainingAmmo = 10;
     defeatedCount = 0;
+    updateSpeedByDefeat();
     updateAmmoDisplay();
     gameState = 'PLAYING';
     document.getElementById('message-overlay').style.display = 'none';
@@ -292,6 +284,7 @@ function update() {
                     hit = true;
                     score += 100;
                     defeatedCount++;
+                    updateSpeedByDefeat(); // 倒したらスピードを上げる
                     break;
                 }
             }
@@ -309,11 +302,12 @@ function update() {
 
     // --- エイリアンの動き ---
     alienMoveTimer++;
-    let threshold = Math.max(1, 15 - Math.floor(alienSpeedMultiplier / 2));
+    // スピード値（10〜30）に合わせてインターバルを調整
+    let threshold = Math.max(1, 15 - Math.floor(currentAlienSpeed / 2));
     
     if (alienMoveTimer >= threshold) {
         alienMoveTimer = 0;
-        let moveStep = alienSpeedMultiplier > 20 ? (alienSpeedMultiplier - 19) * 2 : 2;
+        let moveStep = currentAlienSpeed > 20 ? (currentAlienSpeed - 19) * 2 : 2;
         let edgeReached = false;
         
         for (let a of aliens) {
@@ -366,7 +360,6 @@ function gameClear() {
     document.getElementById('overlay-title').innerText = 'STAGE CLEAR!!';
     document.getElementById('overlay-title').style.color = '#5ff';
     
-    // Geocaching用座標・キーワードの表示エリア作成
     document.getElementById('overlay-text').innerHTML = `
         <div class="clear-box">
             <div>📍 座標: <span>N 36° 30.XXX E 139° 00.YYY</span></div>
@@ -382,10 +375,11 @@ function draw() {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // スコア & 撃破数表示
+    // スコア、撃破数、現在のスピード表示
     ctx.fillStyle = '#0f0';
-    ctx.font = '12px "Courier New"';
-    ctx.fillText(`SCORE: ${score}  DEFEAT: ${defeatedCount}/${targetDefeat}`, 10, 20);
+    ctx.font = '11px "Courier New"';
+    ctx.fillText(`SCORE:${score} DEFEAT:${defeatedCount}/${targetDefeat}`, 10, 18);
+    ctx.fillText(`SPEED: ${currentAlienSpeed}`, 10, 34);
 
     // 自機
     ctx.fillStyle = '#00ffcc';
