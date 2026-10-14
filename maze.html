@@ -24,14 +24,14 @@
             overflow: hidden;
         }
         h1 {
-            font-size: 1.2rem;
-            margin: 5px 0;
+            font-size: 1.1rem;
+            margin: 4px 0;
             color: #4CAF50;
             text-align: center;
         }
         p.instruction {
-            font-size: 0.8rem;
-            margin: 0 0 10px 0;
+            font-size: 0.75rem;
+            margin: 0 0 8px 0;
             color: #ccc;
             text-align: center;
         }
@@ -51,31 +51,31 @@
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
-        /* 十字コントローラー */
+        /* 十字コントローラー（コンパクト化） */
         .controller {
             display: grid;
-            grid-template-columns: repeat(3, 70px);
-            grid-template-rows: repeat(3, 60px);
-            gap: 4px;
-            margin-top: 15px;
+            grid-template-columns: repeat(3, 40px);
+            grid-template-rows: repeat(3, 35px);
+            gap: 3px;
+            margin-top: 12px;
         }
         .ctrl-btn {
             background-color: #333;
             color: #fff;
-            font-size: 1.4rem;
+            font-size: 1rem;
             font-weight: bold;
             border: 2px solid #555;
-            border-radius: 8px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 4px 0 #222;
+            box-shadow: 0 2px 0 #222;
             transition: background 0.1s, transform 0.1s;
         }
         .ctrl-btn:active {
             background-color: #4CAF50;
-            transform: translateY(4px);
+            transform: translateY(2px);
             box-shadow: 0 0 0 #222;
         }
         .btn-up { grid-column: 2; grid-row: 1; }
@@ -102,16 +102,16 @@
         }
         #modal-screen h2 {
             margin-top: 0;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
         }
         #modal-screen p {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             line-height: 1.4;
         }
         .action-btn {
-            margin-top: 15px;
-            padding: 10px 20px;
-            font-size: 1rem;
+            margin-top: 12px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
             background-color: #4CAF50;
             color: white;
             border: none;
@@ -152,21 +152,20 @@
         const canvas = document.getElementById('mazeCanvas');
         const ctx = canvas.getContext('2d');
 
-        const TILE_SIZE = 16; // 1マスのサイズ (20x20マス = 320x320px)
-        const GRID_SIZE = 20;
+        const TILE_SIZE = 8; // 1マスのサイズを小さくし、40×40マスの高密度迷路に設定
+        const GRID_SIZE = 40;
 
-        // 0: 通路, 1: 壁, 2: スタート(中央), 3: ハズレの隅, 4: 当たりの隅
         let maze = [];
-        let player = { x: 10, y: 10 };
+        let player = { x: 20, y: 20 }; // 中央 (20, 20)
         let goalIndex = 0; // 0~3のどれが当たりか
         let isGameOver = false;
 
-        // 四隅の座標定義
+        // 四隅の座標定義（40×40マスに対応）
         const corners = [
             { x: 1, y: 1 },       // 左上
-            { x: 18, y: 1 },      // 右上
-            { x: 1, y: 18 },      // 左下
-            { x: 18, y: 18 }      // 右下
+            { x: 38, y: 1 },      // 右上
+            { x: 1, y: 38 },      // 左下
+            { x: 38, y: 38 }      // 右下
         ];
 
         function initMaze() {
@@ -176,46 +175,51 @@
             // 迷路の初期化（すべて壁で埋める）
             maze = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(1));
 
-            // 棒倒し法または簡易アルゴリズムで細かい迷路を生成
+            // 穴掘り法ベースで細かく複雑な迷路を自動生成
             for (let y = 1; y < GRID_SIZE - 1; y++) {
                 for (let x = 1; x < GRID_SIZE - 1; x++) {
                     if (x % 2 === 0 && y % 2 === 0) {
                         maze[y][x] = 0;
-                        // ランダムに上下左右のどこかを壁にする
-                        let dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-                        let d = dirs[Math.floor(Math.random() * dirs.length)];
-                        if (y + d[1] < GRID_SIZE - 1 && x + d[0] < GRID_SIZE - 1) {
+                        let dirs = [[0, 2], [0, -2], [2, 0], [-2, 0]];
+                        // ランダムにシャッフル
+                        dirs.sort(() => Math.random() - 0.5);
+                        let d = dirs[0];
+                        if (y + d[1] > 0 && y + d[1] < GRID_SIZE - 1 && x + d[0] > 0 && x + d[0] < GRID_SIZE - 1) {
+                            maze[y + d[1] / 2][x + d[0] / 2] = 0;
                             maze[y + d[1]][x + d[0]] = 0;
                         }
                     } else {
-                        // ランダム通路を追加して細かく入り組ませる
-                        if (Math.random() > 0.35) {
+                        // 一定確率で通路を増やして細かい分岐を作る
+                        if (Math.random() > 0.45) {
                             maze[y][x] = 0;
                         }
                     }
                 }
             }
 
-            // 中央（スタート地点周辺）を通路にする
-            for (let y = 9; y <= 11; y++) {
-                for (let x = 9; x <= 11; x++) {
+            // 中央（スタート地点周辺）を通路で広く確保
+            for (let y = 18; y <= 22; y++) {
+                for (let x = 18; x <= 22; x++) {
                     maze[y][x] = 0;
                 }
             }
 
-            // 四隅およびそこへ通じる通路を確保
+            // 四隅およびそこへ通じる通路を確実に確保
             corners.forEach(c => {
                 maze[c.y][c.x] = 0;
-                maze[c.y + (c.y === 1 ? 1 : -1)][c.x] = 0;
-                maze[c.y][c.x + (c.x === 1 ? 1 : -1)] = 0;
+                let signX = c.x === 1 ? 1 : -1;
+                let signY = c.y === 1 ? 1 : -1;
+                for(let i = 1; i <= 3; i++) {
+                    maze[c.y][c.x + signX * i] = 0;
+                    maze[c.y + signY * i][c.x] = 0;
+                }
             });
 
-            // 四隅のうち1つを「当たり(4)」、残りの3つを「ハズレ(3)」にランダム設定
+            // 四隅のうち1つを「当たり」、残りの3つを「ハズレ」にランダム設定
             goalIndex = Math.floor(Math.random() * corners.length);
 
             // プレイヤーを中央に配置
-            player = { x: 10, y: 10 };
-            maze[player.y][player.x] = 2;
+            player = { x: 20, y: 20 };
 
             draw();
         }
@@ -233,10 +237,10 @@
                         ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                     }
 
-                    // 四隅の見た目はすべて同じにする（どれが当たりか分からないようにする）
+                    // 四隅の見た目はすべて同じ（どれが当たりか分からないようにする）
                     let isCorner = corners.some(c => c.x === x && c.y === y);
                     if (isCorner) {
-                        ctx.fillStyle = '#555555'; // 通常の通路や隅と同じ見た目
+                        ctx.fillStyle = '#555555';
                         ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                         ctx.strokeStyle = '#777777';
                         ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
@@ -244,13 +248,13 @@
                 }
             }
 
-            // プレイヤーを描画 (ドット絵風の丸アイコン・シグナル君をイメージ)
+            // プレイヤーを描画
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
             ctx.arc(
                 player.x * TILE_SIZE + TILE_SIZE / 2,
                 player.y * TILE_SIZE + TILE_SIZE / 2,
-                TILE_SIZE / 2 - 2,
+                TILE_SIZE / 2 - 1,
                 0,
                 Math.PI * 2
             );
@@ -275,15 +279,12 @@
         }
 
         function checkCornerArrival() {
-            // プレイヤーが四隅のいずれかに到達したかチェック
             for (let i = 0; i < corners.length; i++) {
                 if (player.x === corners[i].x && player.y === corners[i].y) {
                     isGameOver = true;
                     if (i === goalIndex) {
-                        // 当たり（ゴール）！
                         triggerGoal();
                     } else {
-                        // ハズレ！
                         triggerGameOver();
                     }
                     break;
@@ -313,7 +314,7 @@
             document.getElementById('modal-text').innerHTML = 
                 "見事正解の隅にたどり着きました！<br><br>" +
                 "<b>【ボーナスコード / 次のヒント】</b><br>" +
-                "<span style='color: #FFEB3B; font-size: 1.1rem;'>GC-BONUS-2026-XYZ</span><br>" +
+                "<span style='color: #FFEB3B; font-size: 1rem;'>GC-BONUS-2026-XYZ</span><br>" +
                 "<small style='color: #aaa;'>※後ほどGASサーバーから動的に取得する仕組みに連動させます</small>";
             
             const btn = document.getElementById('modal-btn');
@@ -335,7 +336,6 @@
             if (['ArrowRight', 'KeyD'].includes(e.code)) { movePlayer(1, 0); e.preventDefault(); }
         });
 
-        // 初回ロード時に迷路を生成
         window.onload = initMaze;
     </script>
 </body>
