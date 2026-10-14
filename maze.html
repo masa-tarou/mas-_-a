@@ -1,1 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- viewportでユーザーによる拡大縮小を完全に禁止 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>迷路チャレンジ - Geocaching Mini Game</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            /* タップ時のハイライトやズーム動作を抑制 */
+            -webkit-touch-callout: none;
+            touch-action: manipulation; 
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            font-size: 1.1rem;
+            margin: 4px 0;
+            color: #4CAF50;
+            text-align: center;
+        }
+        p.instruction {
+            font-size: 0.75rem;
+            margin: 0 0 8px 0;
+            color: #ccc;
+            text-align: center;
+        }
+        #game-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            background-color: #111;
+            border: 4px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background-color: #222;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        /* 十字コントローラー（コンパクト化） */
+        .controller {
+            display: grid;
+            grid-template-columns: repeat(3, 40px);
+            grid-template-rows: repeat(3, 35px);
+            gap: 3px;
+            margin-top: 12px;
+        }
+        .ctrl-btn {
+            background-color: #333;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: bold;
+            border: 2px solid #555;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 0 #222;
+            transition: background 0.1s, transform 0.1s;
+        }
+        .ctrl-btn:active {
+            background-color: #4CAF50;
+            transform: translateY(2px);
+            box-shadow: 0 0 0 #222;
+        }
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 3; }
 
+        /* モーダル画面（ゲームオーバー / クリア） */
+        #modal-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            display: none;
+            padding: 20px;
+            text-align: center;
+        }
+        #modal-screen h2 {
+            margin-top: 0;
+            font-size: 1.4rem;
+        }
+        #modal-screen p {
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        .action-btn {
+            margin-top: 12px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .action-btn:active {
+            background-color: #388E3C;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>GEOCACHING MAZE</h1>
+    <p class="instruction">中央からスタート！四隅のどこかにゴールがあるぞ</p>
+
+    <div id="game-container">
+        <canvas id="mazeCanvas" width="320" height="320"></canvas>
+        
+        <!-- モーダル（ゲームオーバー / クリア通知） -->
+        <div id="modal-screen">
+            <h2 id="modal-title">タイトル</h2>
+            <p id="modal-text">メッセージ</p>
+            <button class="action-btn" id="modal-btn" onclick="resetGame()">もう一度挑戦する</button>
+        </div>
+    </div>
+
+    <!-- 十字ボタンコントロール -->
+    <div class="controller">
+        <div class="ctrl-btn btn-up" onclick="movePlayer(0, -1)">▲</div>
+        <div class="ctrl-btn btn-left" onclick="movePlayer(-1, 0)">◀</div>
+        <div class="ctrl-btn btn-right" onclick="movePlayer(1, 0)">▶</div>
+        <div class="ctrl-btn btn-down" onclick="movePlayer(0, 1)">▼</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const TILE_SIZE = 8;
+        const GRID_SIZE = 40;
+
+        let maze = [];
+        let player = { x: 20, y: 20 };
+        let goalIndex = 0;
+        let isGameOver = false;
+
+        const corners = [
+            { x: 1, y: 1 },       // 左上
+            { x: 38, y: 1 },      // 右上
+            { x: 1, y: 38 },      // 左下
+            { x: 38, y: 38 }      // 右下
+        ];
+
+        function initMaze() {
+            isGameOver = false;
+            document.getElementById('modal-screen').style.display = 'none';
+
+            maze = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(1));
+
+            for (let y = 1; y < GRID_SIZE - 1; y++) {
+                for (let x = 1; x < GRID_SIZE - 1; x++) {
+                    if (x % 2 === 0 && y % 2 === 0) {
+                        maze[y][x] = 0;
+                        let dirs = [[0, 2], [0, -2], [2, 0], [-2, 0]];
+                        dirs.sort(() => Math.random() - 0.5);
+                        let d = dirs[0];
+                        if (y + d[1] > 0 && y + d[1] < GRID_SIZE - 1 && x + d[0] > 0 && x + d[0] < GRID_SIZE - 1) {
+                            maze[y + d[1] / 2][x + d[0] / 2] = 0;
+                            maze[y + d[1]][x + d[0]] = 0;
+                        }
+                    } else {
+                        if (Math.random() > 0.45) {
+                            maze[y][x] = 0;
+                        }
+                    }
+                }
+            }
+
+            for (let y = 18; y <= 22; y++) {
+                for (let x = 18; x <= 22; x++) {
+                    maze[y][x] = 0;
+                }
+            }
+
+            corners.forEach(c => {
+                maze[c.y][c.x] = 0;
+                let signX = c.x === 1 ? 1 : -1;
+                let signY = c.y === 1 ? 1 : -1;
+                for(let i = 1; i <= 3; i++) {
+                    maze[c.y][c.x + signX * i] = 0;
+                    maze[c.y + signY * i][c.x] = 0;
+                }
+            });
+
+            goalIndex = Math.floor(Math.random() * corners.length);
+            player = { x: 20, y: 20 };
+
+            draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    if (maze[y][x] === 1) {
+                        ctx.fillStyle = '#333344';
+                        ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        ctx.fillStyle = '#111111';
+                        ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    }
+
+                    let isCorner = corners.some(c => c.x === x && c.y === y);
+                    if (isCorner) {
+                        ctx.fillStyle = '#555555';
+                        ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                        ctx.strokeStyle = '#777777';
+                        ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.arc(
+                player.x * TILE_SIZE + TILE_SIZE / 2,
+                player.y * TILE_SIZE + TILE_SIZE / 2,
+                TILE_SIZE / 2 - 1,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        function movePlayer(dx, dy) {
+            if (isGameOver) return;
+
+            let newX = player.x + dx;
+            let newY = player.y + dy;
+
+            if (newX >= 0 && newX < GRID_SIZE && newY >= 0 && newY < GRID_SIZE) {
+                if (maze[newY][newX] !== 1) {
+                    player.x = newX;
+                    player.y = newY;
+                    draw();
+                    checkCornerArrival();
+                }
+            }
+        }
+
+        function checkCornerArrival() {
+            for (let i = 0; i < corners.length; i++) {
+                if (player.x === corners[i].x && player.y === corners[i].y) {
+                    isGameOver = true;
+                    if (i === goalIndex) {
+                        triggerGoal();
+                    } else {
+                        triggerGameOver();
+                    }
+                    break;
+                }
+            }
+        }
+
+        function triggerGameOver() {
+            const modal = document.getElementById('modal-screen');
+            document.getElementById('modal-title').innerText = "❌ ハズレ行き止まり…";
+            document.getElementById('modal-title').style.color = "#FF5252";
+            document.getElementById('modal-text').innerText = "ここはハズレの角でした！\n別の隅を目指して再挑戦しよう。";
+            
+            const btn = document.getElementById('modal-btn');
+            btn.innerText = "もう一度挑戦する";
+            btn.onclick = resetGame;
+            
+            modal.style.display = 'flex';
+        }
+
+        function triggerGoal() {
+            const modal = document.getElementById('modal-screen');
+            document.getElementById('modal-title').innerText = "🎉 当たりクリアおめでとう！";
+            document.getElementById('modal-title').style.color = "#4CAF50";
+            
+            document.getElementById('modal-text').innerHTML = 
+                "見事正解の隅にたどり着きました！<br><br>" +
+                "<b>【ボーナスコード / 次のヒント】</b><br>" +
+                "<span style='color: #FFEB3B; font-size: 1rem;'>GC-BONUS-2026-XYZ</span><br>" +
+                "<small style='color: #aaa;'>※後ほどGASサーバーから動的に取得する仕組みに連動させます</small>";
+            
+            const btn = document.getElementById('modal-btn');
+            btn.innerText = "もう一度遊ぶ";
+            btn.onclick = resetGame;
+            
+            modal.style.display = 'flex';
+        }
+
+        function resetGame() {
+            initMaze();
+        }
+
+        // iPhoneでのダブルタップによるズーム動作そのものをJavaScript側でもブロック
+        document.addEventListener('dblclick', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+
+        // キーボード操作対応（PC用）
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'KeyW'].includes(e.code)) { movePlayer(0, -1); e.preventDefault(); }
+            if (['ArrowDown', 'KeyS'].includes(e.code)) { movePlayer(0, 1); e.preventDefault(); }
+            if (['ArrowLeft', 'KeyA'].includes(e.code)) { movePlayer(-1, 0); e.preventDefault(); }
+            if (['ArrowRight', 'KeyD'].includes(e.code)) { movePlayer(1, 0); e.preventDefault(); }
+        });
+
+        window.onload = initMaze;
+    </script>
+</body>
+</html>
